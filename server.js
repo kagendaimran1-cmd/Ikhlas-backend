@@ -7,85 +7,97 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* =========================
-   MIDDLEWARE
-========================= */
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-/* =========================
-   ENSURE DIRECTORIES
-========================= */
+// Ensure folders exist
 ["uploads/gallery", "uploads/news", "data"].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-/* =========================
-   HELPERS
-========================= */
+// Helpers
 const readJSON = file =>
   fs.existsSync(file) ? JSON.parse(fs.readFileSync(file)) : [];
 
 const writeJSON = (file, data) =>
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
-/* =========================
-   MULTER STORAGE
-========================= */
-const storage = folder =>
-  multer.diskStorage({
-    destination: (_, __, cb) => cb(null, `uploads/${folder}`),
-    filename: (_, file, cb) =>
-      cb(null, Date.now() + "-" + file.originalname)
-  });
-
-/* =========================
-   GALLERY (LEGACY ROUTES)
-========================= */
-const galleryUpload = multer({ storage: storage("gallery") });
-
-app.post("/upload/gallery", galleryUpload.single("file"), (req, res) => {
-  const dataFile = "data/gallery.json";
-  const gallery = readJSON(dataFile);
-
-  const item = {
-    id: Date.now(),
-    filename: req.file.filename,
-    url: `/uploads/gallery/${req.file.filename}`,
-    type: req.file.mimetype,
-    createdAt: new Date()
-  };
-
-  gallery.unshift(item);
-  writeJSON(dataFile, gallery);
-
-  res.json({ success: true, item });
+// Multer storage
+const galleryStorage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, "uploads/gallery"),
+  filename: (_, file, cb) => cb(null, Date.now() + "-" + file.originalname)
 });
 
-app.get("/gallery", (_, res) => {
+const newsStorage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, "uploads/news"),
+  filename: (_, file, cb) => cb(null, Date.now() + "-" + file.originalname)
+});
+
+const galleryUpload = multer({ storage: galleryStorage });
+const newsUpload = multer({ storage: newsStorage });
+
+/* =========================
+   🔹 UNIFIED MEDIA (FOR GALLERY + UPLOAD.HTML)
+========================= */
+
+// Upload (USED BY upload.html)
+app.post("/upload", galleryUpload.single("file"), (req, res) => {
+  try {
+    const dataFile = "data/gallery.json";
+    const gallery = readJSON(dataFile);
+
+    const type = req.body.type || "image";
+    const item = {
+      id: Date.now(),
+      name: req.file.originalname,
+      path: `uploads/gallery/${req.file.filename}`,
+      type
+    };
+
+    gallery.unshift(item);
+    writeJSON(dataFile, gallery);
+
+    res.json(item);
+  } catch (err) {
+    res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+// Fetch media (USED BY gallery.html & upload.html)
+app.get("/media", (_, res) => {
   res.json(readJSON("data/gallery.json"));
 });
 
-app.delete("/gallery/:id", (req, res) => {
-  const dataFile = "data/gallery.json";
-  let gallery = readJSON(dataFile);
+// Delete media (USED BY upload.html)
+app.post("/delete", (req, res) => {
+  try {
+    const { path: filePath } = req.body;
+    const dataFile = "data/gallery.json";
 
-  const item = gallery.find(i => i.id == req.params.id);
-  if (!item) return res.status(404).json({ error: "Not found" });
+    let gallery = readJSON(dataFile);
+    const item = gallery.find(i => i.path === filePath);
 
-  fs.unlinkSync(`uploads/gallery/${item.filename}`);
-  gallery = gallery.filter(i => i.id != req.params.id);
-  writeJSON(dataFile, gallery);
+    if (!item) return res.status(404).json({ error: "Not found" });
 
-  res.json({ success: true });
+    const fullPath = path.join(__dirname, item.path);
+    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+
+    gallery = gallery.filter(i => i.path !== filePath);
+    writeJSON(dataFile, gallery);
+
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Delete failed" });
+  }
 });
 
 /* =========================
-   NEWS (LEGACY ROUTES)
+   🔹 NEWS (KEEP AS-IS)
 ========================= */
-const newsUpload = multer({ storage: storage("news") });
 
+// Upload news
 app.post("/upload/news", newsUpload.single("file"), (req, res) => {
   const dataFile = "data/news.json";
   const news = readJSON(dataFile);
@@ -105,10 +117,12 @@ app.post("/upload/news", newsUpload.single("file"), (req, res) => {
   res.json({ success: true, item });
 });
 
+// Fetch news
 app.get("/news", (_, res) => {
   res.json(readJSON("data/news.json"));
 });
 
+// Delete news
 app.delete("/news/:id", (req, res) => {
   const dataFile = "data/news.json";
   let news = readJSON(dataFile);
@@ -116,89 +130,20 @@ app.delete("/news/:id", (req, res) => {
   const item = news.find(n => n.id == req.params.id);
   if (!item) return res.status(404).json({ error: "Not found" });
 
-  if (item.filename) fs.unlinkSync(`uploads/news/${item.filename}`);
+  if (item.filename) {
+    const fp = `uploads/news/${item.filename}`;
+    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+  }
+
   news = news.filter(n => n.id != req.params.id);
   writeJSON(dataFile, news);
 
   res.json({ success: true });
 });
 
-/* =========================
-   FRONTEND-COMPATIBLE ROUTES
-========================= */
-
-/* ---- MEDIA FEED ---- */
-app.get("/media", (_, res) => {
-  const gallery = readJSON("data/gallery.json").map(item => ({
-    name: item.filename,
-    path: item.url.replace(/^\//, ""),
-    type: item.type.startsWith("image")
-      ? "image"
-      : item.type.startsWith("video")
-      ? "video"
-      : "audio"
-  }));
-
-  res.json(gallery);
-});
-
-/* ---- GENERIC UPLOAD (upload.html) ---- */
-app.post(
-  "/upload",
-  multer({ storage: storage("gallery") }).single("file"),
-  (req, res) => {
-    const dataFile = "data/gallery.json";
-    const gallery = readJSON(dataFile);
-
-    const fileType = req.body.type || "image";
-
-    const item = {
-      id: Date.now(),
-      filename: req.file.filename,
-      url: `/uploads/gallery/${req.file.filename}`,
-      type:
-        fileType === "image"
-          ? "image/jpeg"
-          : fileType === "video"
-          ? "video/mp4"
-          : "audio/mpeg",
-      createdAt: new Date()
-    };
-
-    gallery.unshift(item);
-    writeJSON(dataFile, gallery);
-
-    res.json({
-      name: item.filename,
-      path: item.url.replace(/^\//, ""),
-      type: fileType
-    });
-  }
-);
-
-/* ---- DELETE (upload.html) ---- */
-app.post("/delete", (req, res) => {
-  const { path: filePath } = req.body;
-  if (!filePath) return res.status(400).json({ error: "Path required" });
-
-  const fullPath = path.join(__dirname, filePath);
-  if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-
-  const dataFile = "data/gallery.json";
-  let gallery = readJSON(dataFile);
-  gallery = gallery.filter(
-    i => !i.url.endsWith(filePath.split("/").pop())
-  );
-  writeJSON(dataFile, gallery);
-
-  res.json({ success: true });
-});
-
-/* =========================
-   HEALTH CHECK
-========================= */
+// Health
 app.get("/", (_, res) => res.send("Ikhlas Backend Running ✅"));
 
-app.listen(PORT, () =>
-  console.log(`Server running on port ${PORT}`)
-);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

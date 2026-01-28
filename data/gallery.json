@@ -1,23 +1,16 @@
 [
   {
-    "id": "g1",
+    "id": "1",
     "filename": "example-image.jpg",
-    "url": "https://your-firebase-storage-link/example-image.jpg",
+    "url": "/uploads/gallery/example-image.jpg",
     "type": "image",
     "createdAt": 1670000000000
   },
   {
-    "id": "g2",
+    "id": "2",
     "filename": "example-video.mp4",
-    "url": "https://your-firebase-storage-link/example-video.mp4",
+    "url": "/uploads/gallery/example-video.mp4",
     "type": "video",
     "createdAt": 1670000100000
-  },
-  {
-    "id": "g3",
-    "filename": "example-audio.mp3",
-    "url": "https://your-firebase-storage-link/example-audio.mp3",
-    "type": "audio",
-    "createdAt": 1670000200000
   }
 ]

@@ -1,26 +1,23 @@
-{
-  "media": [
-    {
-      "id": "1",
-      "name": "example-image.jpg",
-      "url": "https://your-firebase-storage-link/example-image.jpg",
-      "type": "image",
-      "createdAt": 1670000000000
-    },
-    {
-      "id": "2",
-      "name": "example-video.mp4",
-      "url": "https://your-firebase-storage-link/example-video.mp4",
-      "type": "video",
-      "createdAt": 1670000100000
-    },
-    {
-      "id": "3",
-      "name": "example-audio.mp3",
-      "url": "https://your-firebase-storage-link/example-audio.mp3",
-      "type": "audio",
-      "createdAt": 1670000200000
-    }
-  ]
-}
-
+[
+  {
+    "id": 1,
+    "name": "example-image.jpg",
+    "path": "uploads/gallery/example-image.jpg",
+    "type": "image",
+    "createdAt": 1670000000000
+  },
+  {
+    "id": 2,
+    "name": "example-video.mp4",
+    "path": "uploads/gallery/example-video.mp4",
+    "type": "video",
+    "createdAt": 1670000100000
+  },
+  {
+    "id": 3,
+    "name": "example-audio.mp3",
+    "path": "uploads/gallery/example-audio.mp3",
+    "type": "audio",
+    "createdAt": 1670000200000
+  }
+]

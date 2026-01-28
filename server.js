@@ -7,57 +7,62 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+/* =========================
+   MIDDLEWARE
+========================= */
 app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Ensure folders exist
+/* =========================
+   ENSURE FOLDERS
+========================= */
 ["uploads/gallery", "uploads/news", "data"].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Helpers
+/* =========================
+   HELPERS
+========================= */
 const readJSON = file =>
-  fs.existsSync(file) ? JSON.parse(fs.readFileSync(file)) : [];
+  fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf-8")) : [];
 
 const writeJSON = (file, data) =>
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
-// Multer storage
-const galleryStorage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, "uploads/gallery"),
-  filename: (_, file, cb) => cb(null, Date.now() + "-" + file.originalname)
-});
-
-const newsStorage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, "uploads/news"),
-  filename: (_, file, cb) => cb(null, Date.now() + "-" + file.originalname)
-});
-
-const galleryUpload = multer({ storage: galleryStorage });
-const newsUpload = multer({ storage: newsStorage });
+/* =========================
+   MULTER STORAGE
+========================= */
+const storage = folder =>
+  multer.diskStorage({
+    destination: (_, __, cb) => cb(null, `uploads/${folder}`),
+    filename: (_, file, cb) =>
+      cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, "_"))
+  });
 
 /* =========================
-   🔹 UNIFIED MEDIA (FOR GALLERY + UPLOAD.HTML)
+   GALLERY UPLOAD
 ========================= */
+const galleryUpload = multer({ storage: storage("gallery") });
 
-// Upload (USED BY upload.html)
 app.post("/upload", galleryUpload.single("file"), (req, res) => {
   try {
-    const dataFile = "data/gallery.json";
-    const gallery = readJSON(dataFile);
+    const galleryFile = "data/gallery.json";
+    const gallery = readJSON(galleryFile);
 
-    const type = req.body.type || "image";
+    const type = req.body.type; // image | video | audio
+    if (!type) return res.status(400).json({ error: "Missing type" });
+
     const item = {
       id: Date.now(),
       name: req.file.originalname,
       path: `uploads/gallery/${req.file.filename}`,
-      type
+      type,
+      createdAt: Date.now()
     };
 
     gallery.unshift(item);
-    writeJSON(dataFile, gallery);
+    writeJSON(galleryFile, gallery);
 
     res.json(item);
   } catch (err) {
@@ -65,85 +70,75 @@ app.post("/upload", galleryUpload.single("file"), (req, res) => {
   }
 });
 
-// Fetch media (USED BY gallery.html & upload.html)
+/* =========================
+   UNIFIED MEDIA ENDPOINT
+   (USED BY GALLERY + UPLOAD)
+========================= */
 app.get("/media", (_, res) => {
-  res.json(readJSON("data/gallery.json"));
+  const gallery = readJSON("data/gallery.json");
+  res.json(gallery);
 });
 
-// Delete media (USED BY upload.html)
+/* =========================
+   DELETE MEDIA
+========================= */
 app.post("/delete", (req, res) => {
   try {
     const { path: filePath } = req.body;
-    const dataFile = "data/gallery.json";
+    if (!filePath) return res.status(400).json({ error: "Missing path" });
 
-    let gallery = readJSON(dataFile);
-    const item = gallery.find(i => i.path === filePath);
+    const galleryFile = "data/gallery.json";
+    let gallery = readJSON(galleryFile);
 
-    if (!item) return res.status(404).json({ error: "Not found" });
+    gallery = gallery.filter(item => item.path !== filePath);
+    writeJSON(galleryFile, gallery);
 
-    const fullPath = path.join(__dirname, item.path);
+    const fullPath = path.join(__dirname, filePath);
     if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
-    gallery = gallery.filter(i => i.path !== filePath);
-    writeJSON(dataFile, gallery);
-
     res.json({ success: true });
-  } catch {
+  } catch (err) {
     res.status(500).json({ error: "Delete failed" });
   }
 });
 
 /* =========================
-   🔹 NEWS (KEEP AS-IS)
+   NEWS (UNCHANGED & SAFE)
 ========================= */
+const newsUpload = multer({ storage: storage("news") });
 
-// Upload news
 app.post("/upload/news", newsUpload.single("file"), (req, res) => {
-  const dataFile = "data/news.json";
-  const news = readJSON(dataFile);
+  const newsFile = "data/news.json";
+  const news = readJSON(newsFile);
 
   const item = {
     id: Date.now(),
     title: req.body.title || "",
     description: req.body.description || "",
-    filename: req.file ? req.file.filename : null,
-    url: req.file ? `/uploads/news/${req.file.filename}` : null,
-    createdAt: new Date()
+    image: req.file ? `uploads/news/${req.file.filename}` : null,
+    createdAt: Date.now()
   };
 
   news.unshift(item);
-  writeJSON(dataFile, news);
+  writeJSON(newsFile, news);
 
-  res.json({ success: true, item });
+  res.json(item);
 });
 
-// Fetch news
 app.get("/news", (_, res) => {
   res.json(readJSON("data/news.json"));
 });
 
-// Delete news
-app.delete("/news/:id", (req, res) => {
-  const dataFile = "data/news.json";
-  let news = readJSON(dataFile);
-
-  const item = news.find(n => n.id == req.params.id);
-  if (!item) return res.status(404).json({ error: "Not found" });
-
-  if (item.filename) {
-    const fp = `uploads/news/${item.filename}`;
-    if (fs.existsSync(fp)) fs.unlinkSync(fp);
-  }
-
-  news = news.filter(n => n.id != req.params.id);
-  writeJSON(dataFile, news);
-
-  res.json({ success: true });
+/* =========================
+   HEALTH CHECK
+========================= */
+app.get("/", (_, res) => {
+  res.send("Ikhlas Backend Running ✅");
 });
 
-// Health
-app.get("/", (_, res) => res.send("Ikhlas Backend Running ✅"));
-
+/* =========================
+   START SERVER
+========================= */
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

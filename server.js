@@ -13,7 +13,6 @@ const GALLERY_JSON = path.join(__dirname, "data", "gallery.json");
 const NEWS_JSON = path.join(__dirname, "data", "news.json");
 
 /* ---------------- Helpers ---------------- */
-
 function readJSON(file, fallback = []) {
   try {
     const raw = fs.readFileSync(file, "utf8");
@@ -29,10 +28,9 @@ function writeJSON(file, data) {
 }
 
 /* ---------------- Multer ---------------- */
-
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const type = req.body.type || "gallery";
+    const type = req.body.type || "image";
     const dir = path.join(__dirname, "uploads", type);
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
@@ -45,35 +43,20 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 /* ---------------- MEDIA (Gallery) ---------------- */
-
-/**
- * FRONTEND EXPECTS:
- * GET /media → ARRAY
- * { name, path, type }
- */
 app.get("/media", (req, res) => {
-  const data = readJSON(GALLERY_JSON, []);
+  const gallery = readJSON(GALLERY_JSON, []);
+  const data = gallery.map(item => ({
+    name: item.name || item.filename,
+    path: item.path || item.url,
+    type: item.type
+  }));
   res.json(data);
 });
 
-/**
- * Optional alias (for testing in browser)
- */
-app.get("/gallery", (req, res) => {
-  const data = readJSON(GALLERY_JSON, []);
-  res.json(data);
-});
-
-/**
- * Upload file
- */
 app.post("/upload", upload.single("file"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
-  }
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
   const type = req.body.type || "image";
-
   const gallery = readJSON(GALLERY_JSON, []);
 
   const item = {
@@ -88,9 +71,6 @@ app.post("/upload", upload.single("file"), (req, res) => {
   res.json(item);
 });
 
-/**
- * Delete file
- */
 app.post("/delete", (req, res) => {
   const { path: filePath } = req.body;
   if (!filePath) return res.status(400).json({ error: "Missing path" });
@@ -105,15 +85,11 @@ app.post("/delete", (req, res) => {
   res.json({ success: true });
 });
 
-/* ---------------- NEWS (UNCHANGED STRUCTURE) ---------------- */
-
+/* ---------------- NEWS ---------------- */
 app.get("/news", (req, res) => {
   const news = readJSON(NEWS_JSON, []);
   res.json(news);
 });
 
-/* ---------------- START ---------------- */
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+/* ---------------- START SERVER ---------------- */
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

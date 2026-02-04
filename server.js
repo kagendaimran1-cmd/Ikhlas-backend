@@ -96,6 +96,60 @@ app.get("/news", (req, res) => {
   const news = readJSON(NEWS_JSON, []);
   res.json(news);
 });
+/* ---------------- NEWS UPLOAD ---------------- */
+const NEWS_UPLOAD_DIR = path.join(__dirname, "uploads", "news");
+fs.mkdirSync(NEWS_UPLOAD_DIR, { recursive: true });
+
+const newsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, NEWS_UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
+});
+const newsUpload = multer({ storage: newsStorage });
+
+// Upload news (title, content, optional image)
+app.post("/upload-news", newsUpload.single("image"), (req, res) => {
+  const { title, content } = req.body;
+  if (!title || !content) return res.status(400).json({ error: "Missing title or content" });
+
+  const news = readJSON(NEWS_JSON, []);
+  const newItem = {
+    id: Date.now().toString(),
+    title,
+    content,
+    date: Date.now(),
+    image: req.file ? `uploads/news/${req.file.filename}` : null
+  };
+
+  news.unshift(newItem);
+  writeJSON(NEWS_JSON, news);
+  res.json(newItem);
+});
+
+// Delete news by id
+app.post("/delete-news", (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: "Missing news id" });
+
+  let news = readJSON(NEWS_JSON, []);
+  const item = news.find(n => n.id === id);
+  if (!item) return res.status(404).json({ error: "News item not found" });
+
+  // Remove the news item from array
+  news = news.filter(n => n.id !== id);
+  writeJSON(NEWS_JSON, news);
+
+  // Delete image file if exists
+  if (item.image) {
+    const imgPath = path.join(__dirname, item.image);
+    if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+  }
+
+  res.json({ success: true });
+});
 
 /* ---------------- START SERVER ---------------- */
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

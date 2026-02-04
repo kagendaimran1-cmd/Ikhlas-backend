@@ -2,11 +2,16 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Enable CORS for all origins
+app.use(cors());
 app.use(express.json());
+
+// Serve uploaded files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 const GALLERY_JSON = path.join(__dirname, "data", "gallery.json");
@@ -42,13 +47,14 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-/* ---------------- MEDIA (Gallery) ---------------- */
+/* ---------------- MEDIA ---------------- */
 app.get("/media", (req, res) => {
   const gallery = readJSON(GALLERY_JSON, []);
+  // Ensure every item has name, path, type
   const data = gallery.map(item => ({
-    name: item.name || item.filename,
-    path: item.path || item.url,
-    type: item.type
+    name: item.name || "unknown",
+    path: item.path,
+    type: item.type || "image"
   }));
   res.json(data);
 });

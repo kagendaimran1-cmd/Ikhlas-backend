@@ -1,18 +1,14 @@
-{
-  "news": [
-    {
-      "id": "n1",
-      "title": "Ramadhan Food Distribution Completed",
-      "description": "Alhamdulillah, over 500 families received essential food packages during the holy month of Ramadhan. Thank you to all donors and volunteers!",
-      "imageUrl": "https://your-firebase-storage-link/news1.jpg",
-      "timestamp": 1670000300000
-    },
-    {
-      "id": "n2",
-      "title": "ICO Builds New Borehole in Mbale",
-      "description": "Our clean water initiative has delivered its 3rd borehole this year, bringing clean drinking water to over 100 households.",
-      "imageUrl": "https://your-firebase-storage-link/news2.jpg",
-      "timestamp": 1670000400000
-    }
-  ]
-}
+[
+  {
+    "id": "1",
+    "title": "New Project Launched",
+    "content": "ICO has launched a new water project in the community.",
+    "date": 1670000000000
+  },
+  {
+    "id": "2",
+    "title": "Charity Event",
+    "content": "Our charity drive collected over $5000 for those in need.",
+    "date": 1670000100000
+  }
+]

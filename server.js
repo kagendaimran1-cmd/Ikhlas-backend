@@ -1,85 +1,119 @@
 const express = require("express");
-const multer = require("multer");
-const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const multer = require("multer");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Ensure folders exist
-["uploads/gallery", "uploads/news", "data"].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+const GALLERY_JSON = path.join(__dirname, "data", "gallery.json");
+const NEWS_JSON = path.join(__dirname, "data", "news.json");
+
+/* ---------------- Helpers ---------------- */
+
+function readJSON(file, fallback = []) {
+  try {
+    const raw = fs.readFileSync(file, "utf8");
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+/* ---------------- Multer ---------------- */
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const type = req.body.type || "gallery";
+    const dir = path.join(__dirname, "uploads", type);
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
 });
 
-// Helpers
-const readJSON = file =>
-  fs.existsSync(file) ? JSON.parse(fs.readFileSync(file)) : [];
-const writeJSON = (file, data) =>
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+const upload = multer({ storage });
 
-// Multer storage factory
-const storage = folder =>
-  multer.diskStorage({
-    destination: (_, __, cb) => cb(null, `uploads/${folder}`),
-    filename: (_, file, cb) =>
-      cb(null, Date.now() + "-" + file.originalname)
-  });
+/* ---------------- MEDIA (Gallery) ---------------- */
 
-/* ====== GALLERY ====== */
-const galleryUpload = multer({ storage: storage("gallery") });
+/**
+ * FRONTEND EXPECTS:
+ * GET /media → ARRAY
+ * { name, path, type }
+ */
+app.get("/media", (req, res) => {
+  const data = readJSON(GALLERY_JSON, []);
+  res.json(data);
+});
 
-// Upload
-app.post("/upload/gallery", galleryUpload.single("file"), (req, res) => {
-  const dataFile = "data/gallery.json";
-  const gallery = readJSON(dataFile);
+/**
+ * Optional alias (for testing in browser)
+ */
+app.get("/gallery", (req, res) => {
+  const data = readJSON(GALLERY_JSON, []);
+  res.json(data);
+});
+
+/**
+ * Upload file
+ */
+app.post("/upload", upload.single("file"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
+  const type = req.body.type || "image";
+
+  const gallery = readJSON(GALLERY_JSON, []);
 
   const item = {
-    id: Date.now().toString(),
-    filename: req.file.filename,
-    url: `/uploads/gallery/${req.file.filename}`,
-    type: req.file.mimetype.startsWith("image") ? "image" : "file",
-    createdAt: Date.now()
+    name: req.file.originalname,
+    path: `uploads/${type}/${req.file.filename}`,
+    type
   };
 
   gallery.unshift(item);
-  writeJSON(dataFile, gallery);
+  writeJSON(GALLERY_JSON, gallery);
 
-  res.json({ success: true, item });
+  res.json(item);
 });
 
-// Fetch
-app.get("/gallery", (_, res) => {
-  const gallery = readJSON("data/gallery.json");
-  res.json(gallery);  // Must be an array
-});
+/**
+ * Delete file
+ */
+app.post("/delete", (req, res) => {
+  const { path: filePath } = req.body;
+  if (!filePath) return res.status(400).json({ error: "Missing path" });
 
-// Delete
-app.delete("/gallery/:id", (req, res) => {
-  const dataFile = "data/gallery.json";
-  let gallery = readJSON(dataFile);
+  const gallery = readJSON(GALLERY_JSON, []);
+  const updated = gallery.filter(i => i.path !== filePath);
+  writeJSON(GALLERY_JSON, updated);
 
-  const item = gallery.find(i => i.id === req.params.id);
-  if (!item) return res.status(404).json({ error: "Not found" });
-
-  fs.unlinkSync(`uploads/gallery/${item.filename}`);
-  gallery = gallery.filter(i => i.id !== req.params.id);
-  writeJSON(dataFile, gallery);
+  const fullPath = path.join(__dirname, filePath);
+  if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
   res.json({ success: true });
 });
 
-/* ====== NEWS (unchanged) ====== */
-// ... your news endpoints ...
+/* ---------------- NEWS (UNCHANGED STRUCTURE) ---------------- */
 
-// Health check
-app.get("/", (_, res) => res.send("Ikhlas Backend Running ✅"));
+app.get("/news", (req, res) => {
+  const news = readJSON(NEWS_JSON, []);
+  res.json(news);
+});
 
-app.listen(PORT, () =>
-  console.log(`Server running on port ${PORT}`)
-);
+/* ---------------- START ---------------- */
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

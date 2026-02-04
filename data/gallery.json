@@ -1,16 +1,12 @@
 [
   {
-    "id": "1",
-    "filename": "example-image.jpg",
-    "url": "/uploads/gallery/example-image.jpg",
-    "type": "image",
-    "createdAt": 1670000000000
+    "name": "myphoto.jpg",
+    "path": "uploads/image/17380923123-myphoto.jpg",
+    "type": "image"
   },
   {
-    "id": "2",
-    "filename": "example-video.mp4",
-    "url": "/uploads/gallery/example-video.mp4",
-    "type": "video",
-    "createdAt": 1670000100000
+    "name": "video.mp4",
+    "path": "uploads/video/17380923123-video.mp4",
+    "type": "video"
   }
 ]
